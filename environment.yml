@@ -1,0 +1,13 @@
+# Conda environment for local development.
+#   conda env create -f environment.yml
+#   conda activate emi
+# Python dependencies are defined once, in pyproject.toml.
+name: emi
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - -e .[dev]

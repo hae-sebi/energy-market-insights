@@ -46,6 +46,13 @@ Source: Bundesnetzagentur | SMARD.de, licensed under [CC BY 4.0](https://creativ
 
 This project is developed with [Claude Code](https://claude.com/claude-code) as an AI pair programmer. The detailed project plan is in [docs/PLAN.md](docs/PLAN.md).
 
+```bash
+conda env create -f environment.yml   # creates the "emi" env and installs the package (editable, with dev tools)
+conda activate emi
+cp .env.example .env                  # optional: adjust settings
+pytest && ruff check .
+```
+
 ## License
 
 Code: [MIT](LICENSE). Data: © Bundesnetzagentur | SMARD.de, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
