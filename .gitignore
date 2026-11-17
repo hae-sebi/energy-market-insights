@@ -221,3 +221,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project data (SQLite DB, downloaded raw data) and local load definitions
+data/
+config/loads.yaml
