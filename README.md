@@ -1,6 +1,6 @@
 # energy-market-insights
 
-> How do renewables drive German electricity prices? Data pipeline, ML forecasting and an interactive dashboard based on SMARD data – with an optional LLM agent to ask questions in plain language.
+> When should a business run its energy-intensive processes tomorrow, and how much does it save? Day-ahead price forecasting, load shifting and backtesting based on SMARD data, with an interactive dashboard and an optional LLM assistant.
 
 ![Status: work in progress](https://img.shields.io/badge/status-work%20in%20progress-orange)
 ![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
@@ -10,25 +10,26 @@
 
 ## Key question
 
-**How does the share of renewable energy affect the German day-ahead electricity price, and can tomorrow's price be forecast?**
+**When should a business run its energy-intensive processes tomorrow, and how much does it save by doing so?**
 
-The project looks at two related questions:
+The project combines three building blocks:
 
-1. **Explain:** How strong is the merit-order effect? How much does the day-ahead price (DE-LU bidding zone) drop as the share of wind and solar in the load rises, and when do negative prices occur?
-2. **Forecast:** Can hourly load and the next day's price be forecast from information that is available *before* the day-ahead auction closes (calendar, past prices, published generation and load forecasts)? The results are always compared against a naive baseline.
+1. **Forecast:** Predict tomorrow's hourly day-ahead price (DE-LU bidding zone) *before* the auction closes, using SMARD's day-ahead forecasts for wind, solar and consumption (residual load). The forecast is judged by its MAE against a naive baseline and by whether it identifies the **cheapest hours** correctly.
+2. **Schedule:** Place flexible loads (power, duration, time window, run continuously or split into blocks) into the cheapest hours.
+3. **Evaluate:** Backtest over past months: **savings** vs. a fixed shift and **regret** vs. perfect price knowledge.
 
 ## Features
 
-- [ ] **Data ingestion:** incremental download of hourly data from the SMARD.de API (generation by source, grid load, day-ahead price DE-LU)
-- [ ] **Storage:** SQLite database with raw observations and a cleaned hourly table; re-running the download doesn't duplicate data
-- [ ] **Data cleaning:** complete UTC time index, DST handling, gap detection, limited interpolation with flags
-- [ ] **Anomaly detection:** flagging of negative prices and statistical outliers (rolling robust z-score)
-- [ ] **Analysis:** renewable share vs. price, quantification of the merit-order effect
-- [ ] **Forecasting:** naive baseline and regression models (scikit-learn) for load and day-ahead price, evaluated with time-series backtests
-- [ ] **Dashboard:** Flask web app with interactive Plotly charts (overview, renewables vs. price, anomalies, forecast)
-- [ ] **AI Q&A (optional):** ask questions about the data in natural language, using an LLM agent whose function calls go only to predefined queries; it can be switched off, and the API key is read only from `.env`
-- [ ] **Quality:** pytest test suite, linting with Ruff, CI with GitHub Actions
-- [ ] **Deployment:** Docker image and Docker Compose setup
+- [ ] **Feasibility check:** one year of data, scatter plot of price vs. renewable share, quick test model vs. baseline
+- [ ] **Data ingestion:** incremental download from the SMARD.de API (generation by source, grid load, day-ahead price DE-LU, day-ahead generation and consumption forecasts)
+- [ ] **Storage & cleaning:** SQLite storage; 15-minute prices (since 1 Oct 2025) are aggregated to hourly values; DST handling; gap flags
+- [ ] **Anomaly detection:** negative prices and statistical outliers
+- [ ] **Price forecast:** naive baseline vs. regression on forecast residual load, calendar and price lags, evaluated by MAE and top-k cheapest-hour hit rate
+- [ ] **Load shifting:** flexible loads defined in YAML, sliding-window scheduler, optional shared power limit
+- [ ] **Backtest:** savings vs. fixed shift and regret vs. perfect foresight over past months
+- [ ] **Dashboard:** Flask + Plotly with tomorrow's plan, savings backtest, forecast quality and market context
+- [ ] **AI assistant (optional):** questions in natural language, answered through fixed functions (`plan_fuer_morgen(last)`, `ersparnis(zeitraum)`, `negative_preise(zeitraum)`); it can be switched off, and the API key is read only from `.env`
+- [ ] **Quality & deployment:** pytest, Ruff, GitHub Actions CI, Docker
 
 ## Tech stack
 
@@ -50,9 +51,9 @@ All market data comes from **[SMARD.de](https://www.smard.de)**, the electricity
 - Realized generation by energy source (Germany)
 - Grid load / electricity consumption (Germany)
 - Day-ahead wholesale price for the DE-LU bidding zone
-- Forecast generation and consumption (planned as forecast inputs)
+- Day-ahead forecasts of generation (wind, solar) and consumption, used as forecast inputs
 
-Data is fetched at hourly resolution and stored in UTC. The dashboard shows it in local time (`Europe/Berlin`).
+Since 1 October 2025, day-ahead prices are published in 15-minute resolution. All series are aggregated to hourly values (prices are averaged, energy quantities are summed). Timestamps are stored in UTC. The dashboard shows it in local time (`Europe/Berlin`).
 
 **Attribution:** Bundesnetzagentur | SMARD.de, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
@@ -66,7 +67,8 @@ src/emi/
 ├── cleaning.py   # cleaning and resampling
 ├── anomalies.py  # negative prices and outlier detection
 ├── features.py   # feature engineering
-├── forecast.py   # baseline and regression models, backtesting
+├── forecast.py   # baseline and regression price models
+├── scheduling/   # load definitions (YAML), scheduler, savings backtest
 ├── queries.py    # shared query layer (dashboard + agent)
 ├── dashboard/    # Flask app and Plotly charts
 ├── assistant/    # optional LLM agent with function calling
@@ -89,9 +91,14 @@ _Coming soon:_ cleaning rules, outlier detection, forecast setup and leakage pre
 
 _Coming soon._
 
-## Limitations & future work
+## Limitations & next steps
 
-_Coming soon._
+- **Savings only cover the exchange price.** Grid fees (Netzentgelte), demand charges (Leistungspreis), levies and taxes aren't modeled, so actual savings on an electricity bill can differ. Modeling them is a planned next step.
+- The scheduler works on a whole-hour grid and covers one day at a time.
+- With a shared power limit, loads are placed by a greedy heuristic, not an exact optimizer (a MILP formulation is a possible next step).
+- Dependencies between processes (one must finish before another starts) aren't modeled.
+
+See [docs/PLAN.md](docs/PLAN.md) for the full project plan.
 
 ## License
 
