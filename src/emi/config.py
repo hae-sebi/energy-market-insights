@@ -1,5 +1,18 @@
 """Application settings, read from environment variables and an optional ``.env`` file.
 
+An *environment variable* is a named value the operating system passes to every
+program, e.g. ``EMI_LOG_LEVEL=DEBUG``. A ``.env`` file is a simple text file with
+such ``NAME=value`` lines; it is listed in .gitignore and never committed.
+
+Supported variables (all optional):
+
+* ``EMI_DB_PATH`` - where the SQLite database lives
+* ``EMI_LOADS_PATH`` - YAML file describing the flexible loads
+* ``EMI_LOG_LEVEL`` - DEBUG, INFO, WARNING, ERROR or CRITICAL
+* ``EMI_ASSISTANT_ENABLED`` - switch the optional LLM assistant on (true/false)
+* ``EMI_ASSISTANT_MODEL`` - which model the assistant uses
+* ``ANTHROPIC_API_KEY`` - API key for the assistant (secret!)
+
 Secrets (the LLM API key) are only ever read from the environment / ``.env`` and are
 never printed: ``repr()`` and :meth:`Settings.describe` mask them.
 """
@@ -11,11 +24,14 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from dotenv import dotenv_values
+from dotenv import dotenv_values  # from the python-dotenv package
 
+# Accepted spellings for booleans in environment variables (which are always text).
 _TRUE = {"1", "true", "yes", "on"}
 _FALSE = {"0", "false", "no", "off", ""}
 
+# Defaults, used when a variable is not set. Paths are relative to the
+# directory the program is started from (normally the project root).
 DEFAULT_DB_PATH = Path("data/emi.sqlite")
 DEFAULT_LOADS_PATH = Path("config/loads.yaml")
 DEFAULT_ASSISTANT_MODEL = "claude-haiku-5-5"
@@ -26,16 +42,24 @@ class ConfigError(ValueError):
 
 
 def _parse_bool(name: str, raw: str | None, default: bool) -> bool:
+    """Turn text like "true" / "0" / "yes" into True or False.
+
+    ``name`` is only used in the error message. ``raw`` is the text from the
+    environment (``None`` if the variable is not set -> use ``default``).
+    Anything unrecognised raises an error instead of silently guessing.
+    """
     if raw is None:
         return default
-    value = raw.strip().lower()
+    value = raw.strip().lower()  # tolerate " TRUE " etc.
     if value in _TRUE:
         return True
     if value in _FALSE:
         return False
+    # `{raw!r}` prints the value with quotes, so empty or odd values stay visible.
     raise ConfigError(f"{name} must be a boolean (true/false), got {raw!r}")
 
 
+# frozen=True: settings are read once at startup and then cannot be changed.
 @dataclass(frozen=True)
 class Settings:
     """Immutable application settings."""
@@ -45,6 +69,8 @@ class Settings:
     log_level: str = "INFO"
     assistant_enabled: bool = False
     assistant_model: str = DEFAULT_ASSISTANT_MODEL
+    # repr=False hides the key when the object is printed, e.g. in logs or error
+    # messages, so it cannot leak by accident.
     anthropic_api_key: str | None = field(default=None, repr=False)
 
     @property
@@ -60,6 +86,7 @@ class Settings:
             "log_level": self.log_level,
             "assistant_enabled": str(self.assistant_enabled).lower(),
             "assistant_model": self.assistant_model,
+            # Only say *whether* a key exists, never show the key itself.
             "anthropic_api_key": "set" if self.anthropic_api_key else "not set",
             "assistant_active": str(self.assistant_active).lower(),
         }
@@ -71,18 +98,25 @@ def load_settings(env: Mapping[str, str] | None = None, *, dotenv: bool = True) 
     If ``dotenv`` is true and no explicit ``env`` is given, a ``.env`` file in the current
     working directory is read as well; real environment variables take precedence.
     ``os.environ`` itself is never modified.
+
+    Tests pass ``env`` as a plain dict, so they do not depend on the machine
+    they run on.
     """
     if env is None:
         file_values: dict[str, str] = {}
         dotenv_path = Path.cwd() / ".env"
         if dotenv and dotenv_path.is_file():
+            # dotenv_values returns None for lines like "KEY" without "=value"; skip those.
             file_values = {k: v for k, v in dotenv_values(dotenv_path).items() if v is not None}
+        # Merge two dicts: entries from the right overwrite the left, so a real
+        # environment variable wins over the same name in .env.
         env = {**file_values, **os.environ}
 
     log_level = env.get("EMI_LOG_LEVEL", "INFO").strip().upper()
     if log_level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
         raise ConfigError(f"EMI_LOG_LEVEL must be a logging level, got {log_level!r}")
 
+    # `env.get(X) or DEFAULT` also falls back to the default if X is set but empty.
     return Settings(
         db_path=Path(env.get("EMI_DB_PATH") or DEFAULT_DB_PATH),
         loads_path=Path(env.get("EMI_LOADS_PATH") or DEFAULT_LOADS_PATH),
@@ -91,5 +125,5 @@ def load_settings(env: Mapping[str, str] | None = None, *, dotenv: bool = True) 
             "EMI_ASSISTANT_ENABLED", env.get("EMI_ASSISTANT_ENABLED"), default=False
         ),
         assistant_model=env.get("EMI_ASSISTANT_MODEL") or DEFAULT_ASSISTANT_MODEL,
-        anthropic_api_key=env.get("ANTHROPIC_API_KEY") or None,
+        anthropic_api_key=env.get("ANTHROPIC_API_KEY") or None,  # "" counts as "no key"
     )

@@ -1,3 +1,9 @@
+"""Tests for reading the settings.
+
+Most tests pass the environment as a plain dict to ``load_settings``, so they
+do not depend on (or change) the real environment of the machine.
+"""
+
 import os
 from pathlib import Path
 
@@ -7,6 +13,7 @@ from emi.config import DEFAULT_ASSISTANT_MODEL, ConfigError, Settings, load_sett
 
 
 def test_defaults_with_empty_env():
+    """Nothing set -> every setting has its default value."""
     s = load_settings({})
     assert s.db_path == Path("data/emi.sqlite")
     assert s.loads_path == Path("config/loads.yaml")
@@ -18,6 +25,7 @@ def test_defaults_with_empty_env():
 
 
 def test_values_from_env():
+    """Every variable is picked up; the log level is normalised to upper case."""
     s = load_settings(
         {
             "EMI_DB_PATH": "/tmp/x.sqlite",
@@ -35,6 +43,7 @@ def test_values_from_env():
     assert s.assistant_active is True
 
 
+# `parametrize` runs the same test several times, once per row of inputs.
 @pytest.mark.parametrize(
     ("enabled", "key", "active"),
     [
@@ -53,6 +62,7 @@ def test_assistant_requires_flag_and_key(enabled, key, active):
 
 @pytest.mark.parametrize("raw", ["maybe", "2", "enabled"])
 def test_invalid_bool_raises(raw):
+    """Unclear values are rejected instead of being guessed."""
     with pytest.raises(ConfigError, match="EMI_ASSISTANT_ENABLED"):
         load_settings({"EMI_ASSISTANT_ENABLED": raw})
 
@@ -63,6 +73,7 @@ def test_invalid_log_level_raises():
 
 
 def test_api_key_never_shown():
+    """Neither printing the object nor describe() reveals the secret."""
     s = Settings(anthropic_api_key="sk-secret-123")
     assert "sk-secret-123" not in repr(s)
     assert "sk-secret-123" not in str(s.describe())
@@ -70,6 +81,7 @@ def test_api_key_never_shown():
 
 
 def test_dotenv_file_is_read_and_env_wins(tmp_path, monkeypatch):
+    """Values come from .env, but a real environment variable overrides them."""
     (tmp_path / ".env").write_text("EMI_DB_PATH=from_dotenv.sqlite\nEMI_LOG_LEVEL=WARNING\n")
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("EMI_DB_PATH", raising=False)
