@@ -1,6 +1,6 @@
 # energy-market-insights
 
-> **When should a business run its energy-intensive processes tomorrow, and how much does it save by doing so?**
+> **Can a business plan tomorrow's energy-intensive processes before the day-ahead prices are known, and how much does it save by doing so?**
 
 ![Status: work in progress](https://img.shields.io/badge/status-work%20in%20progress-orange)
 ![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
@@ -14,13 +14,26 @@ German day-ahead electricity prices vary a lot within a single day. They drop wh
 
 This project forecasts tomorrow's prices, schedules flexible loads into the cheapest hours, and uses backtests on past data to check how much money that would actually have saved.
 
+### Why forecast prices that get published anyway?
+
+Tomorrow's prices are set in an auction that closes today at 12:00 and are published at around 12:45. From then on no forecast is needed, and the planner simply uses the real prices.
+
+Many decisions have to be made earlier, though. A business that buys directly on the exchange must submit its bids before 12:00. Shifts, staff and materials are often planned in the morning of the day before. This project forecasts tomorrow's prices **before the auction** from SMARD data, so that planning can start early:
+
+| time of planning | prices used by the planner |
+|---|---|
+| before the prices for tomorrow are published | price **forecast** |
+| once the prices for tomorrow are published (from ~12:45) | **actual** day-ahead prices |
+
+Every plan states which of the two it is based on. The backtest measures how much deciding before the auction costs compared with planning on the actual prices.
+
 ## Planned features
 
 - [x] **Feasibility check:** one year of SMARD data, price vs. forecast residual load, simple model vs. rule of thumb: go ([notebook](notebooks/00_feasibility.ipynb))
 - [ ] **Data pipeline:** incremental download from SMARD, stored in SQLite, cleaned and checked for anomalies (including negative prices)
 - [ ] **Price forecast:** regression on SMARD's day-ahead forecasts for wind, solar and consumption (residual load), evaluated by MAE against a naive baseline and by how well it identifies the cheapest hours
-- [ ] **Load shifting:** flexible loads defined in YAML (power, duration, time window, run in one block or split), scheduled with a sliding window, optional shared power limit
-- [ ] **Backtest:** savings vs. a fixed shift and regret vs. perfect price knowledge over past months
+- [ ] **Load shifting:** flexible loads defined in YAML (power, duration, time window, run in one block or split), scheduled with a sliding window, optional shared power limit; uses the actual prices once published and the forecast before
+- [ ] **Backtest:** savings vs. a fixed shift, and regret vs. planning on the actual prices (the cost of deciding before the auction), over past months
 - [ ] **Dashboard:** Flask + Plotly showing tomorrow's plan, savings and forecast quality
 - [ ] **AI assistant (optional):** questions in natural language, answered through fixed functions (`plan_fuer_morgen`, `ersparnis`, `negative_preise`); it can be switched off, and the API key is read only from `.env`
 - [ ] **Quality & deployment:** pytest, Ruff, GitHub Actions, Docker
@@ -40,7 +53,15 @@ Source: Bundesnetzagentur | SMARD.de, licensed under [CC BY 4.0](https://creativ
 ## Limitations
 
 - **Savings refer to the exchange price only.** Grid fees (*Netzentgelte*), demand charges (*Leistungspreis*), levies and taxes aren't modeled, so actual savings on an electricity bill can differ. Adding them is a planned next step.
+- **One day ahead only.** SMARD's forecasts for wind, solar and consumption cover the next day only, so the planner looks no further than tomorrow.
+- **Forecast availability.** Planning before the auction assumes that SMARD's forecasts for tomorrow are online before 12:00. SMARD doesn't record when a forecast was published, so this is still being checked.
 - Loads are scheduled on a whole-hour grid, one day at a time, without dependencies between processes.
+
+## Next steps
+
+- **Multi-day planning with weather forecasts:** forecast prices for the next 2–7 days from weather forecasts for wind and solar (e.g. Open-Meteo). Then loads could also be moved to another day.
+- **Full electricity costs:** grid fees, demand charges, levies and taxes.
+- **Exact optimisation** (MILP) for several loads sharing a power limit.
 
 ## Development
 

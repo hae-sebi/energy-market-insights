@@ -2,12 +2,23 @@
 
 ## Leitfrage
 
-**Wann sollte ein Betrieb morgen seine energieintensiven Prozesse laufen lassen, und wie viel spart er dadurch?**
+**Kann ein Betrieb seine energieintensiven Prozesse für morgen schon planen, bevor die Day-Ahead-Preise feststehen, und wie viel spart er dadurch?**
+
+### Einordnung: Warum Preise vorhersagen, die ohnehin veröffentlicht werden?
+
+Die Day-Ahead-Preise für morgen werden heute um 12:00 Uhr in einer Auktion festgelegt und gegen ca. 12:45 Uhr veröffentlicht. Ab dann braucht niemand mehr eine Prognose: Der Planer nimmt einfach die echten Preise. Das Projekt geht damit offen um.
+
+Viele Entscheidungen fallen aber **vor** der Auktion:
+
+- Wer selbst an der Börse kauft (z. B. ein Industriebetrieb oder sein Händler), muss seine Gebote vor 12:00 abgeben.
+- Schichten, Personal, Material oder Produktionsreihenfolgen werden oft schon am Morgen des Vortags festgelegt.
+
+Das Projekt sagt deshalb die Preise **vor der Auktion** aus den SMARD-Daten vorher, damit früh geplant werden kann. Der Backtest beantwortet, wie viel diese frühe Planung im Vergleich zur Planung mit den echten Preisen kostet (Regret).
 
 Abgeleitete Teilfragen:
 
-1. Wie gut lässt sich der Day-Ahead-Preis (DE-LU) für morgen aus den SMARD-Prognosen (Wind, Solar, Verbrauch, Residuallast) vorhersagen, und erkennt die Prognose die **günstigsten Stunden**?
-2. Wie viel spart eine Lastverschiebung gegenüber einer festen Schicht, und wie weit liegt sie hinter einer Planung mit perfekter Preiskenntnis zurück (**Regret**)?
+1. Wie gut lässt sich der Day-Ahead-Preis (DE-LU) für morgen vor der Auktion aus den SMARD-Prognosen (Wind, Solar, Verbrauch, Residuallast) vorhersagen, und erkennt die Prognose die **günstigsten Stunden**?
+2. Wie viel spart eine Lastverschiebung gegenüber einer festen Schicht, und wie viel kostet es, vor der Auktion statt mit den echten Preisen zu planen (**Regret**)?
 3. Kontext: Wie hängen EE-Anteil, negative Preise und Preisniveau zusammen? Das ist die Motivation für die Verschiebung.
 
 ## Fachliche Leitplanken
@@ -15,7 +26,9 @@ Abgeleitete Teilfragen:
 - **Entscheidungszeitpunkt:** Der Day-Ahead-Preis für morgen wird heute gegen ca. 12:45 Uhr (MEZ/MESZ) veröffentlicht. Es gibt deshalb zwei Modi:
   - **Vor der Auktion** (Planung bis ca. 12:00): Planung auf Basis der **Preisprognose**. Nur hier bringt das Modell einen Mehrwert.
   - **Nach Veröffentlichung**: Planung auf Basis der **tatsächlichen Preise**. Der Regret ist dann trivialerweise 0.
-  Im Backtest wird immer der Modus „vor der Auktion“ simuliert.
+  - Der Planer wählt die Preisquelle **automatisch**: Liegen die echten Preise für alle Stunden des Zieltags vor, werden sie verwendet, sonst die Prognose. Jeder Plan weist seine Preisquelle aus (`actual` oder `forecast`), auch im Dashboard und im Assistenten.
+  Im Backtest wird immer der Modus „vor der Auktion“ simuliert. Der Plan mit echten Preisen ist dort der Vergleichsmaßstab (Perfect Foresight).
+- **Offener Punkt:** Der Modus „vor der Auktion“ setzt voraus, dass die SMARD-Prognosen für morgen vor 12:00 verfügbar sind. SMARD speichert keinen Veröffentlichungszeitpunkt, deshalb wird das live geprüft (siehe Fazit im Machbarkeitscheck).
 - **Kein Leakage:** Als Features für Tag D+1 dienen nur Werte, die am Tag D um 12:00 bekannt sind: SMARD-Day-Ahead-Prognosen für D+1, Preise bis D, Kalender.
 - **Zeitauflösung:** Seit 01.10.2025 gibt es Preise in 15-Minuten-Auflösung. Die Rohdaten werden in nativer Auflösung gespeichert und im Cleaning **einheitlich auf Stundenwerte aggregiert**:
   - Preise (€/MWh): Mittelwert der vier Viertelstunden
@@ -102,6 +115,7 @@ loads:
 - **divisible:** die k günstigsten Stunden innerhalb des Fensters.
 - **Gemeinsame Leistungsgrenze (optional):** Die Lasten werden greedy nacheinander eingeplant, absteigend nach Energiemenge (kWh). Jede Last bekommt das günstigste Fenster, das die Restkapazität nicht überschreitet. Das ist bewusst eine Heuristik. Sie ist im README so benannt, und ein exakter MILP-Ansatz steht unter Next Steps.
 - Ist eine Last nicht einplanbar, gibt es einen klaren Fehler bzw. Status „infeasible“ statt eines stillen Teilplans.
+- **Preisquelle:** Der Scheduler bekommt eine Preiskurve und weiß nichts über deren Herkunft. Die Auswahl „echte Preise, falls vollständig veröffentlicht, sonst Prognose“ passiert davor in einer eigenen Funktion. So bleibt der Scheduler einfach testbar.
 
 ### Kennzahlen und Backtest
 
@@ -186,7 +200,7 @@ Die Lasten selbst stehen in der YAML-Datei, nicht in der Datenbank. In `schedule
 
 ## Dashboard (Flask + Plotly)
 
-1. **Plan für morgen:** Preiskurve (Prognose bzw. tatsächlich, sobald veröffentlicht) mit eingeplanten Lasten als Balken, dazu die erwarteten Kosten im Vergleich zur festen Schicht
+1. **Plan für morgen:** Preiskurve (Prognose bzw. tatsächlich, sobald veröffentlicht) mit eingeplanten Lasten als Balken, dazu die erwarteten Kosten im Vergleich zur festen Schicht. Gut sichtbar steht dabei, ob der Plan auf der Prognose oder den echten Preisen beruht.
 2. **Ersparnis-Backtest:** Ersparnis und Regret pro Monat, kumuliert
 3. **Prognosegüte:** MAE vs. Baseline, Top-k-Trefferquote
 4. **Markt-Kontext:** Preis vs. EE-Anteil (Streudiagramm), negative Preise
@@ -204,6 +218,7 @@ Die Lasten selbst stehen in der YAML-Datei, nicht in der Datenbank. In `schedule
 | Forecast | synthetischer Zusammenhang wird gelernt, Top-k-Trefferquote an handgerechneten Beispielen |
 | Lasten-YAML | gültige Datei wird geladen, ungültige (Dauer > Fenster, Leistung ≤ 0) mit klarer Fehlermeldung abgelehnt |
 | Scheduler | contiguous == Brute-Force auf Zufallspreisen (Property-Test), divisible wählt die k günstigsten Stunden, Fenstergrenzen eingehalten, Leistungsgrenze nie überschritten, „infeasible“ korrekt erkannt |
+| Preisquelle | echte Preise vollständig → `actual`, fehlen sie (ganz oder teilweise) → `forecast`, DST-Tage mit 23/25 Stunden |
 | Backtest | Regret ≥ 0, bei konstanten Preisen Ersparnis = 0 und Regret = 0, Perfect-Foresight-Plan hat Regret 0 |
 | Dashboard | alle Routen 200 mit Fixture-DB, Assistent deaktiviert ohne Key |
 | Assistent | Fake-LLM: korrekter Tool-Dispatch, ungültige Argumente abgefangen, Rundenlimit |
@@ -229,14 +244,14 @@ Ziel ca. 80 % Coverage auf `src/emi`.
 ## README-Gliederung (Englisch)
 
 1. Titel, Pitch, Badges, Status „work in progress“
-2. Key question (Lastverschiebung) und Kernergebnis („Shifting X kWh/day would have saved Y € over Z months, regret W € vs. perfect foresight“)
+2. Key question (Planung vor der Auktion, Lastverschiebung), kurze Einordnung „Warum Preise vorhersagen, die um 12:45 veröffentlicht werden?“ und Kernergebnis („Shifting X kWh/day would have saved Y € over Z months, regret W € vs. perfect foresight“)
 3. Features (Checkliste)
 4. How it works: Prognose → Scheduler → Backtest (kleines Diagramm)
 5. Quickstart (lokal und Docker), Beispiel `loads.yaml`
 6. Configuration (Env-Variablen, Assistent optional)
 7. Methodology: Daten und Aggregation 15 min → 1 h, Entscheidungszeitpunkt und Leakage, Metriken (MAE, Top-k, Ersparnis, Regret)
 8. Results
-9. **Limitations & next steps:** Ersparnis bezieht sich nur auf den Börsenpreis, Netzentgelte und Leistungspreis sind nicht modelliert; außerdem Heuristik für die Leistungsgrenze (MILP als Next Step), ganzstündiges Raster, keine Prozessabhängigkeiten
+9. **Limitations & next steps:** Ersparnis bezieht sich nur auf den Börsenpreis, Netzentgelte und Leistungspreis sind nicht modelliert; außerdem Heuristik für die Leistungsgrenze (MILP als Next Step), ganzstündiges Raster, keine Prozessabhängigkeiten, Planungshorizont nur ein Tag (Mehrtagesplan als Next Step)
 10. Data source und Attribution (SMARD, CC BY 4.0), Testing & CI, License
 
 ## Zeitplan (10 Arbeitstage)
@@ -251,3 +266,10 @@ Ziel ca. 80 % Coverage auf `src/emi`.
 | 8 | Dashboard (Plan für morgen, Ersparnis, Prognosegüte, Markt-Kontext) |
 | 9 | Docker, README mit Ergebnissen und Limitations |
 | 10 | Puffer und LLM-Assistent (`plan_fuer_morgen`, `ersparnis`, `negative_preise`); fällt bei Zeitmangel als Erstes weg |
+
+## Ausblick (nach dem MVP)
+
+- **Mehrtagesplan mit Wetterprognosen:** Die SMARD-Prognosen reichen nur bis morgen. Für einen Plan über mehrere Tage (z. B. „Lohnt es sich, die Charge auf Donnerstag zu verschieben?“) werden Wetterprognosen für Wind und Sonne aus einer zusätzlichen Quelle gebraucht (z. B. Open-Meteo, kostenlos). Daraus werden Wind- und PV-Erzeugung geschätzt und die Preise für die Tage D+2 bis D+7 prognostiziert. Die Unsicherheit wächst mit dem Abstand, deshalb sollte der Backtest die Güte je Vorlauf (1, 2, … 7 Tage) ausweisen. Diese Funktion macht die Prognose auch für Betriebe nützlich, die nicht vor 12:00 entscheiden müssen.
+- **Netzentgelte, Leistungspreis, Umlagen und Steuern** in die Kostenrechnung aufnehmen.
+- **Exakte Optimierung** (MILP) statt der Greedy-Heuristik bei gemeinsamer Leistungsgrenze.
+- **Preisniveau-Features** (z. B. Gas- und CO₂-Preise), weil das Preisniveau laut Machbarkeitscheck stark driftet und in SMARD nicht enthalten ist.
