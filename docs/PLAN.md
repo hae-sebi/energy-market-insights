@@ -131,6 +131,25 @@ Ausgewertet wird pro Tag, Monat und über den gesamten Zeitraum. Hochgerechnet a
   - indirekt der Regret aus dem Scheduling-Backtest, also die eigentliche Zielgröße
 - Eine Lastprognose ist **nicht mehr** Teil des MVP, denn die SMARD-Verbrauchsprognose wird direkt genutzt.
 
+### Erkenntnisse aus dem Machbarkeitscheck (für Tag 5)
+
+Testzeitraum 18.05.–17.11.2026, Ridge mit wöchentlichem Re-Fit. Diese Analysen stehen bewusst nicht im Notebook, das kurz bleiben soll.
+
+- **Niveau-Bias:** Ridge liegt in jeder Testwoche zu tief, im Mittel −22,8 €/MWh. Ursache ist ein Preisniveau, das stark driftet: Der Median-Preis bei 25–35 GWh prognostizierter Residuallast stieg von 87 €/MWh (Nov 2025) auf 218,5 €/MWh (Nov 2026). Treiber sind vermutlich Brennstoff- und CO₂-Preise, die nicht in SMARD enthalten sind.
+- **Trainingsfenster** (Sensitivität auf dem Testzeitraum, deshalb nicht für die Auswahl verwenden):
+
+  | Fenster | MAE | Bias | Top-4-Treffer | Regret |
+  |---|---|---|---|---|
+  | expanding | 28,6 | −22,8 | 0,841 | 1,57 |
+  | 26 Wochen | 24,9 | −16,4 | 0,840 | 1,56 |
+  | 12 Wochen | 23,1 | −14,0 | 0,842 | 1,34 |
+  | 8 Wochen | 22,1 | −11,3 | 0,844 | 1,25 |
+  | 4 Wochen | 22,6 | −7,4 | 0,851 | 1,20 |
+
+  → An Tag 5 das Fenster auf einem **eigenen Validierungszeitraum** wählen und ein Niveau-Feature testen (z. B. Mittelpreis der letzten 7 Tage).
+- **Profil-Baseline** (Stundenmittel der letzten 28 Tage): Ihr MAE ist schlechter als bei naiv (43,1 vs. 36,3), ihre Top-4-Trefferquote aber besser (0,80 vs. 0,76), wegen des Mittagstiefs durch PV. Sie wird im Forecast- und Scheduler-Backtest mit ausgewiesen.
+- Die vollständige Analyse (lange Notebook-Version) liegt nicht im Repo. Sie lässt sich mit dem Code aus `forecast.py` nachbauen.
+
 ## Datenmodell (SQLite)
 
 ```

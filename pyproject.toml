@@ -28,6 +28,10 @@ dev = [
     "responses>=0.25",
     "ruff>=0.6",
 ]
+notebook = [
+    "jupyterlab>=4.2",
+    "matplotlib>=3.9",
+]
 
 [project.scripts]
 emi = "emi.cli:main"

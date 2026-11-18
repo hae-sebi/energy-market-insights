@@ -16,7 +16,7 @@ This project forecasts tomorrow's prices, schedules flexible loads into the chea
 
 ## Planned features
 
-- [ ] **Feasibility check:** one year of data, price vs. renewable share, quick model vs. baseline
+- [x] **Feasibility check:** one year of SMARD data, price vs. forecast residual load, simple model vs. rule of thumb: go ([notebook](notebooks/00_feasibility.ipynb))
 - [ ] **Data pipeline:** incremental download from SMARD, stored in SQLite, cleaned and checked for anomalies (including negative prices)
 - [ ] **Price forecast:** regression on SMARD's day-ahead forecasts for wind, solar and consumption (residual load), evaluated by MAE against a naive baseline and by how well it identifies the cheapest hours
 - [ ] **Load shifting:** flexible loads defined in YAML (power, duration, time window, run in one block or split), scheduled with a sliding window, optional shared power limit
